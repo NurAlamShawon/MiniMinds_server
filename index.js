@@ -29,34 +29,90 @@ async function run() {
 
     const database = client.db("MiniMinds");
     const usercollection = database.collection("users");
+    const avatercollection = database.collection("avaters");
 
     //users
 
     // post user
 
     app.post("/users", async (req, res) => {
-      const users = req.body;
-      const result = await usercollection.insertOne(users);
+      console.log("data posted", req.body);
+      const newuser = req.body;
+
+      // Check if a user with the same name already exists
+      const existingUser = await usercollection.findOne({
+        name: newuser.name,
+      });
+
+      if (existingUser) {
+        // User with the same name already exists
+        return res
+          .status(400)
+          .json({ message: "User with this name already exists." });
+      }
+
+      // Insert the new user since it's unique
+      const result = await usercollection.insertOne(newuser);
+      res.status(201).send(result);
+    });
+
+    //get user
+    app.get("/users", async (req, res) => {
+      try {
+        const { email } = req.query;
+
+        const query = {};
+
+        if (email) {
+          query.email = email;
+        }
+
+        const user = await usercollection
+          .find(query)
+          .sort({ creation_date: -1 })
+          .toArray();
+
+        res.send(user);
+      } catch (error) {
+        console.error("Error fetching parcels:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
+    // patch user for avater img add
+    app.patch("/users/:email", async (req, res) => {
+      const email = req.params.email;
+      const { img } = req.body;
+      const result = await usercollection.updateOne(
+        { email },
+        { $set: { img: img } }
+      );
       res.send(result);
     });
 
 
 
+    //avater part
 
+    //get avater
 
+    app.get("/avaters", async (req, res) => {
+      try {
+        const avaters = await avatercollection.find({}).toArray();
 
+        res.send(avaters);
+      } catch (error) {
+        console.error("Error fetching parcels:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
 
-
-
-
-
-
-
-
-
-
-
-
+    //post avater
+    app.post("/avaters", async (req, res) => {
+      const avater = req.body;
+      const result = await avatercollection.insertOne(avater);
+      res.status(201).send(result);
+    });
 
     // get parcel
 
