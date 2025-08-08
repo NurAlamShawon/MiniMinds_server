@@ -37,23 +37,21 @@ async function run() {
 
     app.post("/users", async (req, res) => {
       console.log("data posted", req.body);
-      const newuser = req.body;
+      const newUser = req.body;
 
-      // Check if a user with the same name already exists
+      // Check if a user with the same email already exists
       const existingUser = await usercollection.findOne({
-        name: newuser.name,
+        email: newUser.email,
       });
 
       if (existingUser) {
-        // User with the same name already exists
-        return res
-          .status(400)
-          .json({ message: "User with this name already exists." });
+        // If user exists, don't create a new one or update role
+        return res.status(200).json({ message: "User already exists." });
       }
 
-      // Insert the new user since it's unique
-      const result = await usercollection.insertOne(newuser);
-      res.status(201).send(result);
+      // If not exists, insert new user
+      const result = await usercollection.insertOne(newUser);
+      res.status(201).json(result);
     });
 
     //get user
@@ -79,6 +77,64 @@ async function run() {
       }
     });
 
+    //  GET user
+    app.get("/users/search", async (req, res) => {
+      const emailQuery = req.query.email;
+      console.log(emailQuery);
+      const regex = new RegExp(emailQuery, "i");
+
+      try {
+        const users = await usercollection
+          .find({ email: { $regex: regex } })
+          .limit(10)
+          .toArray();
+        res.send(users);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: err.message });
+      }
+    });
+
+    //make user to admin
+    app.put("/users/:id/make-admin", async (req, res) => {
+      const userId = req.params.id;
+
+      try {
+        const result = await usercollection.updateOne(
+          { _id: new ObjectId(String(userId)) },
+          {
+            $set: {
+              role: "admin",
+            },
+          }
+        );
+        res.send(result);
+      } catch (error) {
+        console.error("Error updating role:", error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // make admin to user
+    app.put("/users/:id/remove-admin", async (req, res) => {
+      const userId = req.params.id;
+
+      try {
+        const result = await usercollection.updateOne(
+          { _id: new ObjectId(String(userId)) },
+          {
+            $set: {
+              role: "user",
+            },
+          }
+        );
+        res.send(result);
+      } catch (error) {
+        console.error("Error updating role:", error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
     // patch user for avater img add
     app.patch("/users/:email", async (req, res) => {
       const email = req.params.email;
@@ -89,8 +145,6 @@ async function run() {
       );
       res.send(result);
     });
-
-
 
     //avater part
 
