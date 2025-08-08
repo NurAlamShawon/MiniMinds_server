@@ -30,6 +30,7 @@ async function run() {
     const database = client.db("MiniMinds");
     const usercollection = database.collection("users");
     const avatercollection = database.collection("avaters");
+    const reviewcollection = database.collection("reviews");
 
     //users
 
@@ -168,6 +169,39 @@ async function run() {
       res.status(201).send(result);
     });
 
+
+
+
+
+
+
+
+
+//review part
+
+//get review
+ app.get("/review", async (req, res) => {
+      try {
+        const avaters = await reviewcollection.find({}).toArray();
+
+        res.send(avaters);
+      } catch (error) {
+        console.error("Error fetching parcels:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
+    //post review
+    app.post("/review", async (req, res) => {
+      const avater = req.body;
+      const result = await reviewcollection.insertOne(avater);
+      res.status(201).send(result);
+    });
+
+
+
+
+
     // get parcel
 
     app.get("/parcels", async (req, res) => {
@@ -232,6 +266,52 @@ async function run() {
       const result = await parcelcollection.deleteOne(query);
 
       res.send(result);
+    });
+
+    //all data about this database
+    app.get("/admin/overview", async (req, res) => {
+      try {
+        const result = await parcelcollection
+          .aggregate([
+            {
+              $facet: {
+                totalParcels: [{ $count: "count" }],
+                completedDeliveries: [
+                  { $match: { delivery_status: "Delivered" } },
+                  { $count: "count" },
+                ],
+              },
+            },
+            {
+              $addFields: {
+                totalParcels: { $arrayElemAt: ["$totalParcels.count", 0] },
+                completedDeliveries: {
+                  $arrayElemAt: ["$completedDeliveries.count", 0],
+                },
+              },
+            },
+          ])
+          .toArray();
+
+        const parcelStats = result[0];
+
+        const [totalUsers, totalAdmins] = await Promise.all([
+          usercollection.countDocuments({ role: "user" }),
+          usercollection.countDocuments({ role: "admin" }),
+        
+        ]);
+
+        res.json({
+          totalParcels: parcelStats.totalParcels || 0,
+          completedDeliveries: parcelStats.completedDeliveries || 0,
+          totalUsers,
+          totalAdmins,
+        
+        });
+      } catch (error) {
+        console.error("Aggregation error:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+      }
     });
   } finally {
     // Ensures that the client will close when you finish/error
