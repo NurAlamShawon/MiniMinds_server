@@ -31,6 +31,8 @@ async function run() {
     const usercollection = database.collection("users");
     const avatercollection = database.collection("avaters");
     const reviewcollection = database.collection("reviews");
+    const lessoncollection = database.collection("lesson");
+    const quizResultsCollection = database.collection("quiz");
 
     //users
 
@@ -169,18 +171,10 @@ async function run() {
       res.status(201).send(result);
     });
 
+    //review part
 
-
-
-
-
-
-
-
-//review part
-
-//get review
- app.get("/review", async (req, res) => {
+    //get review
+    app.get("/review", async (req, res) => {
       try {
         const avaters = await reviewcollection.find({}).toArray();
 
@@ -198,8 +192,120 @@ async function run() {
       res.status(201).send(result);
     });
 
+    //lesson part
 
+    // GET all lessons
+    app.get("/lessons", async (req, res) => {
+      try {
+        const lessons = await lessoncollection.find({}).toArray();
+        res.send(lessons);
+      } catch (error) {
+        console.error("Error fetching lessons:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
 
+    // POST new lesson
+    app.post("/lessons", async (req, res) => {
+      try {
+        const lesson = req.body;
+        const result = await lessoncollection.insertOne(lesson);
+        res.status(201).send(result);
+      } catch (error) {
+        console.error("Error saving lesson:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
+    //quiz part
+
+    //post quiz
+    app.post("/quiz-results", async (req, res) => {
+      const { userId, quizId, score, total } = req.body;
+
+      if (!userId || !quizId || score === undefined || total === undefined) {
+        return res.status(400).send({ message: "Missing fields" });
+      }
+
+      try {
+        // 1️⃣ Check if this user already has a result for this quiz
+        const existingResult = await quizResultsCollection.findOne({
+          userId,
+          quizId: new ObjectId(String(quizId)),
+        });
+
+        if (existingResult) {
+          return res
+            .status(403)
+            .send({ message: "You have already taken this quiz." });
+        }
+
+        // 2️⃣ Save new result
+        await quizResultsCollection.insertOne({
+          userId,
+          quizId: new ObjectId(String(quizId)),
+          score,
+          total,
+          timestamp: new Date(),
+        });
+
+        res.status(200).send({ message: "Result saved" });
+      } catch (e) {
+        console.error(e);
+        res.status(500).send({ message: "Failed to save quiz result" });
+      }
+    });
+
+    // Get quiz attempt info
+    const { ObjectId } = require("mongodb");
+
+    app.get("/quiz-results/:userId/:quizId", async (req, res) => {
+      const { userId, quizId } = req.params;
+
+      try {
+        const result = await quizResultsCollection.findOne({
+          userId: userId, // string in DB
+          quizId: ObjectId(quizId), // convert to ObjectId
+        });
+
+        res.send({ attempted: !!result, result });
+      } catch (error) {
+        console.error(error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
+    // Get standings for a specific lesson/quiz
+
+    app.get("/standings/:quizId", async (req, res) => {
+  const { quizId } = req.params;
+
+  try {
+    const results = await quizResultsCollection
+      .aggregate([
+        { $match: { quizId: new ObjectId(quizId) } },
+        {
+          $lookup: {
+            from: "users",
+            let: { userIdStr: "$userId" },
+            pipeline: [
+              { $addFields: { _idStr: { $toString: "$_id" } } },
+              { $match: { $expr: { $eq: ["$_idStr", "$$userIdStr"] } } }
+            ],
+            as: "userInfo",
+          },
+        },
+        { $unwind: "$userInfo" },
+        { $sort: { score: -1, timestamp: 1 } },
+      ])
+      .toArray();
+
+    res.send(results);
+  } catch (error) {
+    console.error("Error fetching standings:", error);
+    res.status(500).send({ message: "Internal server error" });
+  }
+});
 
 
     // get parcel
@@ -298,7 +404,6 @@ async function run() {
         const [totalUsers, totalAdmins] = await Promise.all([
           usercollection.countDocuments({ role: "user" }),
           usercollection.countDocuments({ role: "admin" }),
-        
         ]);
 
         res.json({
@@ -306,7 +411,6 @@ async function run() {
           completedDeliveries: parcelStats.completedDeliveries || 0,
           totalUsers,
           totalAdmins,
-        
         });
       } catch (error) {
         console.error("Aggregation error:", error);
