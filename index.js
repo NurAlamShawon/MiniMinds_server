@@ -18,20 +18,19 @@ const client = new MongoClient(uri, {
   },
 });
 
-
 //for access token
 
 var admin = require("firebase-admin");
 
-const decoded = Buffer.from(process.env.FIREBASE_SERVICE_KEY, "base64").toString(
-  "utf8"
-);
+const decoded = Buffer.from(
+  process.env.FIREBASE_SERVICE_KEY,
+  "base64"
+).toString("utf8");
 var serviceAccount = JSON.parse(decoded);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
-
 
 // // middleware for verify token
 
@@ -52,21 +51,19 @@ const verifyFirebaseToken = async (req, res, next) => {
   }
 };
 
+//middleware for verify admin
 
- //middleware for verify admin
+const verifyAdmin = async (req, res, next) => {
+  const email = req.decoded.email;
+  console.log("Decoded Email:", req.decoded.email);
+  const query = { email };
+  const user = await userscollection.findOne(query);
+  if (!user || user.role !== "admin") {
+    return res.status(403).send({ message: "forbidden" });
+  }
 
-    const verifyAdmin = async (req, res, next) => {
-      const email = req.decoded.email;
-      console.log("Decoded Email:", req.decoded.email);
-      const query = { email };
-      const user = await userscollection.findOne(query);
-      if (!user || user.role !== "admin") {
-        return res.status(403).send({ message: "forbidden" });
-      }
-
-      next();
-    };
-
+  next();
+};
 
 async function run() {
   try {
@@ -83,13 +80,13 @@ async function run() {
     const reviewcollection = database.collection("reviews");
     const lessoncollection = database.collection("lesson");
     const quizResultsCollection = database.collection("quiz");
-    const redemcollection=database.collection("redems");
+    const redemcollection = database.collection("redems");
 
     //users
 
     // post user
 
-    app.post("/users",  async (req, res) => {
+    app.post("/users", async (req, res) => {
       console.log("data posted", req.body);
       const newUser = req.body;
 
@@ -132,42 +129,52 @@ async function run() {
     });
 
     //  GET user
-    app.get("/users/search", verifyFirebaseToken,verifyAdmin, async (req, res) => {
-      const emailQuery = req.query.email;
-      console.log(emailQuery);
-      const regex = new RegExp(emailQuery, "i");
+    app.get(
+      "/users/search",
+      verifyFirebaseToken,
+      verifyAdmin,
+      async (req, res) => {
+        const emailQuery = req.query.email;
+        console.log(emailQuery);
+        const regex = new RegExp(emailQuery, "i");
 
-      try {
-        const users = await usercollection
-          .find({ email: { $regex: regex } })
-          .limit(10)
-          .toArray();
-        res.send(users);
-      } catch (err) {
-        console.error(err);
-        res.status(500).send({ error: err.message });
+        try {
+          const users = await usercollection
+            .find({ email: { $regex: regex } })
+            .limit(10)
+            .toArray();
+          res.send(users);
+        } catch (err) {
+          console.error(err);
+          res.status(500).send({ error: err.message });
+        }
       }
-    });
+    );
 
     //make user to admin
-    app.put("/users/:id/make-admin",verifyFirebaseToken,verifyAdmin, async (req, res) => {
-      const userId = req.params.id;
+    app.put(
+      "/users/:id/make-admin",
+      verifyFirebaseToken,
+      verifyAdmin,
+      async (req, res) => {
+        const userId = req.params.id;
 
-      try {
-        const result = await usercollection.updateOne(
-          { _id: new ObjectId(String(userId)) },
-          {
-            $set: {
-              role: "admin",
-            },
-          }
-        );
-        res.send(result);
-      } catch (error) {
-        console.error("Error updating role:", error);
-        res.status(500).json({ error: error.message });
+        try {
+          const result = await usercollection.updateOne(
+            { _id: new ObjectId(String(userId)) },
+            {
+              $set: {
+                role: "admin",
+              },
+            }
+          );
+          res.send(result);
+        } catch (error) {
+          console.error("Error updating role:", error);
+          res.status(500).json({ error: error.message });
+        }
       }
-    });
+    );
 
     // add gems
     app.patch("/users/gems/:email", verifyFirebaseToken, async (req, res) => {
@@ -192,26 +199,29 @@ async function run() {
     });
 
     // make admin to user
-    app.put("/users/:id/remove-admin", verifyFirebaseToken,verifyAdmin, async (req, res) => {
-      const userId = req.params.id;
+    app.put(
+      "/users/:id/remove-admin",
+      verifyFirebaseToken,
+      verifyAdmin,
+      async (req, res) => {
+        const userId = req.params.id;
 
-      try {
-        const result = await usercollection.updateOne(
-          { _id: new ObjectId(String(userId)) },
-          {
-            $set: {
-              role: "user",
-            },
-          }
-        );
-        res.send(result);
-      } catch (error) {
-        console.error("Error updating role:", error);
-        res.status(500).json({ error: error.message });
+        try {
+          const result = await usercollection.updateOne(
+            { _id: new ObjectId(String(userId)) },
+            {
+              $set: {
+                role: "user",
+              },
+            }
+          );
+          res.send(result);
+        } catch (error) {
+          console.error("Error updating role:", error);
+          res.status(500).json({ error: error.message });
+        }
       }
-    });
-
-  
+    );
 
     //avater part
 
@@ -228,8 +238,8 @@ async function run() {
       }
     });
 
-      // patch user for avater img add
-    app.patch("/avater/:email",  async (req, res) => {
+    // patch user for avater img add
+    app.patch("/avater/:email", async (req, res) => {
       const email = req.params.email;
       const { img } = req.body;
       const result = await usercollection.updateOne(
@@ -240,7 +250,7 @@ async function run() {
     });
 
     //post avater
-    app.post("/avaters",  async (req, res) => {
+    app.post("/avaters", async (req, res) => {
       const avater = req.body;
       const result = await avatercollection.insertOne(avater);
       res.status(201).send(result);
@@ -281,7 +291,7 @@ async function run() {
     });
 
     // POST new lesson
-    app.post("/lessons",verifyFirebaseToken,verifyAdmin,  async (req, res) => {
+    app.post("/lessons", verifyFirebaseToken, verifyAdmin, async (req, res) => {
       try {
         const lesson = req.body;
         const result = await lessoncollection.insertOne(lesson);
@@ -295,7 +305,7 @@ async function run() {
     //quiz part
 
     //post quiz
-    app.post("/quiz-results",verifyFirebaseToken,  async (req, res) => {
+    app.post("/quiz-results", verifyFirebaseToken, async (req, res) => {
       const { userId, quizId, score, total } = req.body;
 
       if (!userId || !quizId || score === undefined || total === undefined) {
@@ -332,25 +342,29 @@ async function run() {
     });
 
     // Get quiz attempt info
-    app.get("/quiz-results/:userId/:quizId",verifyFirebaseToken,  async (req, res) => {
-      const { userId, quizId } = req.params;
+    app.get(
+      "/quiz-results/:userId/:quizId",
+      verifyFirebaseToken,
+      async (req, res) => {
+        const { userId, quizId } = req.params;
 
-      try {
-        const result = await quizResultsCollection.findOne({
-          userId: userId, // string in DB
-          quizId: new ObjectId(quizId), // convert to ObjectId
-        });
+        try {
+          const result = await quizResultsCollection.findOne({
+            userId: userId, // string in DB
+            quizId: new ObjectId(quizId), // convert to ObjectId
+          });
 
-        res.send({ attempted: !!result, result });
-      } catch (error) {
-        console.error(error);
-        res.status(500).send({ message: "Internal server error" });
+          res.send({ attempted: !!result, result });
+        } catch (error) {
+          console.error(error);
+          res.status(500).send({ message: "Internal server error" });
+        }
       }
-    });
+    );
 
     // Get standings for a specific lesson/quiz
 
-    app.get("/standings/:quizId",verifyFirebaseToken,  async (req, res) => {
+    app.get("/standings/:quizId", verifyFirebaseToken, async (req, res) => {
       const { quizId } = req.params;
 
       try {
@@ -380,105 +394,145 @@ async function run() {
       }
     });
 
-//redem
-// Create a redemption (called from your GiftRedeem component)
-app.post("/redemptions", async (req, res) => {
-  try {
-    const { email, giftId, giftName, giftImg, cost = 0, address = {} } = req.body;
+    //redem
+    // POST /redemptions  -> create a redemption doc
+    app.post("/redemptions", async (req, res) => {
+      try {
+        const {
+          email: rawEmail,
+          giftId,
+          giftName,
+          giftImg,
+          cost: rawCost,
+          address = {},
+        } = req.body;
 
-    if (!email || !giftId || !giftName) {
-      return res.status(400).json({ error: "email, giftId, giftName are required" });
-    }
+        const email = String(rawEmail || "").toLowerCase(); // normalize
+        const cost = Number(rawCost);
 
-    // minimal address validation
-    const required = ["name", "phone", "address1", "city", "postalCode"];
-    for (const k of required) {
-      if (!address[k]) return res.status(400).json({ error: `address.${k} is required` });
-    }
+        // basic validation
+        if (!email || !giftId || !giftName) {
+          return res
+            .status(400)
+            .json({ error: "email, giftId, giftName are required" });
+        }
+        if (!Number.isFinite(cost) || cost < 0) {
+          return res.status(400).json({ error: "cost must be a number >= 0" });
+        }
 
-    const now = new Date();
-    const doc = {
-      email,
-      giftId,
-      giftName,
-      giftImg: giftImg || "",
-      cost: Number(cost) || 0,
-      address: {
-        name: address.name,
-        phone: address.phone,
-        address1: address.address1,
-        address2: address.address2 || "",
-        city: address.city,
-        postalCode: address.postalCode,
-        notes: address.notes || "",
-      },
-      deliveryStatus: false, // default false (not delivered yet)
-      createdAt: now,
-      updatedAt: now,
-    };
+        const required = ["name", "phone", "address1", "city", "postalCode"];
+        for (const k of required) {
+          if (!address[k]) {
+            return res.status(400).json({ error: `address.${k} is required` });
+          }
+        }
 
-    const result = await redemcollection.insertOne(doc);
-    res.status(201).json({ _id: result.insertedId, ...doc });
-  } catch (err) {
-    console.error("Create redemption error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+        const now = new Date();
+        const doc = {
+          email,
+          giftId,
+          giftName,
+          giftImg: giftImg || "",
+          cost,
+          address: {
+            name: address.name,
+            phone: address.phone,
+            address1: address.address1,
+            address2: address.address2 || "",
+            city: address.city,
+            postalCode: address.postalCode,
+            notes: address.notes || "",
+          },
+          deliveryStatus: false,
+          createdAt: now,
+          updatedAt: now,
+        };
 
-// List redemptions (admin or filter by email)
-app.get("/redemptions", async (req, res) => {
-  try {
-    const { email } = req.query;
-    const query = email ? { email } : {};
-    const items = await redemcollection
-      .find(query)
-      .sort({ createdAt: -1 })
-      .toArray();
-    res.json(items);
-  } catch (err) {
-    console.error("Get redemptions error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+        const result = await redemcollection.insertOne(doc);
+        return res.status(201).json({ _id: result.insertedId, ...doc });
+      } catch (err) {
+        console.error("Create redemption error:", err);
+        return res.status(500).json({ error: err.message });
+      }
+    });
 
-// Get a single redemption (optional)
-app.get("/redemptions/:id", async (req, res) => {
-  try {
-    const id = req.params.id;
-    const item = await redemcollection.findOne({ _id: new ObjectId(id) });
-    if (!item) return res.status(404).json({ error: "Not found" });
-    res.json(item);
-  } catch (err) {
-    console.error("Get redemption error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+    // GET /redemptions?email=...
+    app.get("/redemptions", async (req, res) => {
+      try {
+        const email = req.query.email
+          ? String(req.query.email).toLowerCase()
+          : null;
+        const query = email ? { email } : {};
+        const items = await redemcollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.json(items);
+      } catch (err) {
+        console.error("Get redemptions error:", err);
+        res.status(500).json({ error: err.message });
+      }
+    });
 
-// Admin: update delivery status (true/false)
-app.patch("/redemptions/:id/delivery", async (req, res) => {
-  try {
-    const id = req.params.id;
-    const { deliveryStatus } = req.body; // expect boolean
-    const result = await redemcollection.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: { deliveryStatus: !!deliveryStatus, updatedAt: new Date() } }
-    );
-    res.json(result);
-  } catch (err) {
-    console.error("Update delivery status error:", err);
-    res.status(500).json({ error: err.message });
-  }
-});
+    // GET /redemptions/:id
+    app.get("/redemptions/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const item = await redemcollection.findOne({ _id: new ObjectId(id) });
+        if (!item) return res.status(404).json({ error: "Not found" });
+        res.json(item);
+      } catch (err) {
+        console.error("Get redemption error:", err);
+        res.status(500).json({ error: err.message });
+      }
+    });
 
+    // PATCH /redemptions/:id/delivery  -> mark delivered
+    app.patch("/redemptions/:id/delivery", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { deliveryStatus } = req.body;
+        const result = await redemcollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { deliveryStatus: !!deliveryStatus, updatedAt: new Date() } }
+        );
+        res.json(result);
+      } catch (err) {
+        console.error("Update delivery status error:", err);
+        res.status(500).json({ error: err.message });
+      }
+    });
 
+    // PATCH /gems/:email/deduct   -> deduct gems
+    app.patch("/gems/:email/deduct", async (req, res) => {
+      try {
+        const email = String(req.params.email).toLowerCase(); // normalize
+        const cost = Number(req.body?.cost);
+        if (!Number.isFinite(cost) || cost <= 0) {
+          return res
+            .status(400)
+            .json({ error: "cost must be a positive number" });
+        }
 
+        const user = await usercollection.findOne({ email });
+        if (!user) return res.status(404).json({ error: "User not found" });
 
+        const current = Number(user.gems) || 0;
+        const newTotal = Math.max(0, current - cost);
 
+        const { value } = await usercollection.findOneAndUpdate(
+          { email },
+          { $set: { gems: newTotal, updatedAt: new Date() } },
+          { returnDocument: "after" }
+        );
 
+        res.json({ ok: true, email, gems: value?.gems ?? newTotal });
+      } catch (err) {
+        console.error("gems deduct error:", err);
+        res.status(500).json({ error: err.message });
+      }
+    });
 
-
-
-  
     //all data about this database
     app.get("/admin/overview", async (req, res) => {
       try {
